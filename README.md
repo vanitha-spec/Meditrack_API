@@ -766,6 +766,29 @@ Doctor adds slot ──────────► Patient sees slot ───�
                                                     Patient sees updated status
 ```
 
+
+```
+PATIENT REQUESTS
+       │
+       ▼
+  ┌────────────┐
+  │ REQUESTED  │  (gray) — Slot still free
+  └─────┬──────┘
+        │
+   ┌────┴────┐
+   │         │
+   ▼         ▼
+┌─────────┐ ┌──────────┐
+│ACCEPTED │ │ REJECTED │  (slot stays free)
+│ (blue)  │ │  (red)   │
+└────┬────┘ └──────────┘
+     │
+     ├──► COMPLETED (green)
+     ├──► NO_SHOW   (yellow)
+     └──► CANCELLED (by patient)
+
+```
+
 ---
 
 ## 🐛 Common Errors & Fixes

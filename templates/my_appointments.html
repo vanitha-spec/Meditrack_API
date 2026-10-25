@@ -2,22 +2,26 @@
 {% block title %}My Appointments{% endblock %}
 
 {% block content %}
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="fw-bold">📅 My Appointments</h2>
     <a href="/doctors/" class="btn btn-sm btn-outline-primary">← Find Doctors</a>
 </div>
 
+<!-- Loading -->
 <div id="loading" class="text-center py-5">
     <div class="spinner-border text-primary" role="status"></div>
-    <p class="text-muted small mt-2">Loading...</p>
+    <p class="text-muted small mt-2">Loading your appointments...</p>
 </div>
 
+<!-- Empty state -->
 <div id="empty" class="text-center py-5" style="display:none;">
     <h1 class="display-6">📭</h1>
-    <p class="text-muted">You haven't booked any appointments yet.</p>
+    <p class="text-muted">You haven't requested any appointments yet.</p>
     <a href="/doctors/" class="btn btn-primary btn-sm">Find a Doctor</a>
 </div>
 
+<!-- Appointments list -->
 <div id="apps"></div>
 
 <script>
@@ -31,13 +35,27 @@ if (!token) {
     window.location.href = '/doctors/';
 }
 
+/* ============ HELPERS ============ */
 function badgeClass(status) {
+    if (status === 'accepted') return 'bg-primary';
     if (status === 'completed') return 'bg-success';
-    if (status === 'cancelled') return 'bg-danger';
+    if (status === 'rejected') return 'bg-danger';
+    if (status === 'cancelled') return 'bg-secondary';
     if (status === 'no_show') return 'bg-warning text-dark';
-    return 'bg-secondary';
+    return 'bg-secondary'; // requested
 }
 
+function statusMessage(status) {
+    if (status === 'requested') return '⏳ Waiting for doctor approval';
+    if (status === 'accepted') return '✅ Confirmed by doctor';
+    if (status === 'rejected') return '❌ Rejected by doctor';
+    if (status === 'completed') return '🎉 Consultation completed';
+    if (status === 'cancelled') return '🚫 Cancelled';
+    if (status === 'no_show') return '⚠️ Marked as no-show';
+    return '';
+}
+
+/* ============ LOAD ============ */
 async function loadAppointments() {
     const res = await fetch('/api/my-appointments/', {
         headers: { 'Authorization': 'Bearer ' + token }
@@ -55,15 +73,22 @@ async function loadAppointments() {
         <div class="card shadow-sm border-0 rounded-4 mb-3">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
-                    <div>
+                    <div class="flex-grow-1">
                         <h5 class="fw-bold mb-1">Dr. ${app.doctor_username}</h5>
                         <p class="text-primary small mb-1">${app.doctor_specialization}</p>
                         <p class="small mb-1">📅 ${app.slot_date} &nbsp; 🕐 ${app.slot_start} – ${app.slot_end}</p>
-                        ${app.notes ? `<p class="small text-secondary"><strong>Doctor's notes:</strong> ${app.notes}</p>` : ''}
+                        <p class="small text-muted mb-0">${statusMessage(app.status)}</p>
+
+                        ${app.notes ? `
+                            <div class="alert alert-info small mt-2 mb-0">
+                                <strong>Doctor's notes:</strong> ${app.notes}
+                            </div>
+                        ` : ''}
                     </div>
+
                     <div class="text-end">
                         <span class="badge ${badgeClass(app.status)}">${app.status.toUpperCase()}</span>
-                        ${app.status === 'pending' ? `
+                        ${(app.status === 'requested' || app.status === 'accepted') ? `
                             <div class="mt-2">
                                 <button onclick="cancelAppointment(${app.id})"
                                         class="btn btn-sm btn-outline-danger">Cancel</button>
@@ -75,6 +100,7 @@ async function loadAppointments() {
     `).join('');
 }
 
+/* ============ CANCEL ============ */
 async function cancelAppointment(id) {
     if (!confirm('Cancel this appointment?')) return;
     const res = await fetch(`/api/appointments/${id}/cancel/`, {
@@ -86,6 +112,7 @@ async function cancelAppointment(id) {
     if (res.ok) loadAppointments();
 }
 
+/* ============ INIT ============ */
 loadAppointments();
 </script>
 {% endblock %}

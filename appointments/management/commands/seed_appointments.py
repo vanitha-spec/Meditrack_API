@@ -13,13 +13,15 @@ from appointments.models import Appointment
 
 class Command(BaseCommand):
     """
-    Seed appointments.
+    Seed appointments with the approval workflow.
 
     Creates a mix of:
-        - pending appointments (upcoming)
-        - completed appointments (with notes)
-        - cancelled appointments
-        - no_show appointments
+        - requested (waiting for doctor)
+        - accepted (confirmed)
+        - rejected (declined by doctor)
+        - completed (with notes)
+        - no_show
+        - cancelled
     """
 
     help = "Populate the database with dummy appointments."
@@ -30,14 +32,12 @@ class Command(BaseCommand):
 
         # Format: (patient_username, doctor_username, slot_index, status, notes)
         plans = [
-            ('ravi', 'dr_sharma', 0, 'pending', ''),
-            ('priya', 'dr_sharma', 1, 'completed',
-             'Mild hypertension detected. Prescribed Amlodipine 5mg once daily.'),
-            ('arjun', 'dr_patel', 0, 'pending', ''),
-            ('sneha', 'dr_patel', 2, 'no_show', ''),
-            ('vikram', 'dr_khan', 0, 'completed',
-             'Routine checkup. Child is healthy. Advised regular vitamin D.'),
-            ('ravi', 'dr_khan', 3, 'cancelled', ''),
+            ('ravi',   'dr_sharma', 0, 'requested', ''),
+            ('priya',  'dr_sharma', 1, 'accepted', ''),
+            ('arjun',  'dr_patel',  0, 'requested', ''),
+            ('sneha',  'dr_patel',  2, 'rejected', ''),
+            ('vikram', 'dr_khan',   0, 'accepted', ''),
+            ('ravi',   'dr_khan',   3, 'cancelled', ''),
         ]
 
         created_count = 0
@@ -52,15 +52,13 @@ class Command(BaseCommand):
                 )
                 continue
 
-            try:
-                slots = list(
-                    AvailabilitySlot.objects.filter(
-                        doctor__user__username=doctor_username,
-                        is_booked=False
-                    ).order_by('date', 'start_time')
-                )
-            except Exception:
-                continue
+            # Get free slots for this doctor
+            slots = list(
+                AvailabilitySlot.objects.filter(
+                    doctor__user__username=doctor_username,
+                    is_booked=False
+                ).order_by('date', 'start_time')
+            )
 
             if slot_idx >= len(slots):
                 self.stdout.write(
@@ -71,7 +69,7 @@ class Command(BaseCommand):
 
             slot = slots[slot_idx]
 
-            # Check if a slot already has an appointment
+            # Skip if slot already has an appointment
             if Appointment.objects.filter(slot=slot).exists():
                 skipped_count += 1
                 continue
@@ -84,8 +82,8 @@ class Command(BaseCommand):
                 notes=notes,
             )
 
-            # Slot is booked unless cancelled
-            if status != 'cancelled':
+            # Book the slot only if status is accepted/completed/no_show
+            if status in ['accepted', 'completed', 'no_show']:
                 slot.is_booked = True
                 slot.save()
 

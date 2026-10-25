@@ -5,8 +5,11 @@
 <h2 class="fw-bold mb-4">🧑‍⚕️ Doctor Dashboard</h2>
 
 <div class="row g-4">
-    <!-- Profile / Slot creation -->
+
+    <!-- ============ LEFT COLUMN ============ -->
     <div class="col-md-5">
+
+        <!-- Profile card -->
         <div class="card shadow-sm border-0 rounded-4 mb-3">
             <div class="card-body p-4">
                 <h5 class="fw-bold mb-3">My Profile</h5>
@@ -19,6 +22,7 @@
             </div>
         </div>
 
+        <!-- Add slot card -->
         <div class="card shadow-sm border-0 rounded-4">
             <div class="card-body p-4">
                 <h5 class="fw-bold mb-3">Add Availability Slot</h5>
@@ -29,15 +33,18 @@
                 <p id="slotMsg" class="small mt-2"></p>
             </div>
         </div>
+
     </div>
 
-    <!-- Appointments + slots -->
+    <!-- ============ RIGHT COLUMN ============ -->
     <div class="col-md-7">
+
         <h5 class="fw-bold mb-3">My Appointments</h5>
         <div id="appointments"></div>
 
         <h5 class="fw-bold mt-4 mb-3">My Slots</h5>
         <div id="slots"></div>
+
     </div>
 </div>
 
@@ -48,7 +55,7 @@ const role = localStorage.getItem('role');
 if (!token) { window.location.href = '/login/'; }
 if (role !== 'doctor') { alert('Doctors only.'); window.location.href = '/doctors/'; }
 
-/* ---------- PROFILE ---------- */
+/* ============ PROFILE ============ */
 async function saveProfile() {
     const body = {
         specialization: document.getElementById('specialization').value,
@@ -71,7 +78,7 @@ async function saveProfile() {
         : '<span class="text-danger">' + data.message + '</span>';
 }
 
-/* ---------- SLOT ---------- */
+/* ============ ADD SLOT ============ */
 async function addSlot() {
     const body = {
         date: document.getElementById('date').value,
@@ -105,7 +112,7 @@ async function addSlot() {
     }
 }
 
-/* ---------- LOAD SLOTS ---------- */
+/* ============ LOAD SLOTS ============ */
 async function loadSlots() {
     const res = await fetch('/api/slots/?all=true', {
         headers: { 'Authorization': 'Bearer ' + token }
@@ -124,7 +131,9 @@ async function loadSlots() {
         <div class="border rounded-3 p-2 mb-2 d-flex justify-content-between align-items-center">
             <div class="small">
                 <strong>${slot.date}</strong> ${slot.start_time}–${slot.end_time}
-                ${slot.is_booked ? '<span class="badge bg-danger ms-2">Booked</span>' : '<span class="badge bg-success ms-2">Free</span>'}
+                ${slot.is_booked
+                    ? '<span class="badge bg-danger ms-2">Booked</span>'
+                    : '<span class="badge bg-success ms-2">Free</span>'}
             </div>
             ${!slot.is_booked
                 ? `<button onclick="deleteSlot(${slot.id})" class="btn btn-sm btn-outline-danger">Delete</button>`
@@ -144,7 +153,7 @@ async function deleteSlot(id) {
     loadSlots();
 }
 
-/* ---------- LOAD APPOINTMENTS ---------- */
+/* ============ LOAD APPOINTMENTS ============ */
 async function loadAppointments() {
     const res = await fetch('/api/doctor/appointments/', {
         headers: { 'Authorization': 'Bearer ' + token }
@@ -164,34 +173,69 @@ async function loadAppointments() {
                     <div>
                         <strong>Patient: ${app.patient_username}</strong>
                         <p class="small mb-1">📅 ${app.slot_date} &nbsp; 🕐 ${app.slot_start} – ${app.slot_end}</p>
-                        <span class="badge ${badgeClass(app.status)}">${app.status}</span>
+                        <span class="badge ${badgeClass(app.status)}">${app.status.toUpperCase()}</span>
                     </div>
                     <div>
-                        ${app.status === 'pending' ? `
+                        ${app.status === 'requested' ? `
+                            <button onclick="approveAppointment(${app.id})" class="btn btn-sm btn-success me-1">Approve</button>
+                            <button onclick="rejectAppointment(${app.id})" class="btn btn-sm btn-danger">Reject</button>
+                        ` : ''}
+
+                        ${app.status === 'accepted' ? `
                             <button onclick="markStatus(${app.id}, 'completed')" class="btn btn-sm btn-success me-1">Complete</button>
                             <button onclick="markStatus(${app.id}, 'no_show')" class="btn btn-sm btn-warning">No Show</button>
                         ` : ''}
                     </div>
                 </div>
 
+                ${app.status === 'accepted' && !app.notes ? `
+                    <div class="input-group input-group-sm mt-2">
+                        <input id="note-${app.id}" class="form-control" placeholder="Add prescription notes...">
+                        <button onclick="addNotes(${app.id})" class="btn btn-outline-primary">Save</button>
+                    </div>
+                ` : ''}
+
                 ${app.notes
-                    ? `<p class="small mt-2 mb-1"><strong>Notes:</strong> ${app.notes}</p>`
-                    : `<div class="input-group input-group-sm mt-2">
-                          <input id="note-${app.id}" class="form-control" placeholder="Add prescription notes...">
-                          <button onclick="addNotes(${app.id})" class="btn btn-outline-primary">Save</button>
-                       </div>`}
+                    ? `<p class="small mt-2 mb-0"><strong>Notes:</strong> ${app.notes}</p>`
+                    : ''}
             </div>
         </div>
     `).join('');
 }
 
 function badgeClass(s) {
+    if (s === 'accepted') return 'bg-primary';
     if (s === 'completed') return 'bg-success';
-    if (s === 'cancelled') return 'bg-danger';
+    if (s === 'rejected') return 'bg-danger';
+    if (s === 'cancelled') return 'bg-secondary';
     if (s === 'no_show') return 'bg-warning text-dark';
-    return 'bg-secondary';
+    return 'bg-secondary'; // requested
 }
 
+/* ============ APPROVE ============ */
+async function approveAppointment(id) {
+    const res = await fetch(`/api/appointments/${id}/approve/`, {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    alert(data.message);
+    if (res.ok) { loadAppointments(); loadSlots(); }
+}
+
+/* ============ REJECT ============ */
+async function rejectAppointment(id) {
+    if (!confirm('Reject this appointment request?')) return;
+    const res = await fetch(`/api/appointments/${id}/reject/`, {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    alert(data.message);
+    if (res.ok) { loadAppointments(); loadSlots(); }
+}
+
+/* ============ MARK STATUS ============ */
 async function markStatus(id, status) {
     const res = await fetch(`/api/appointments/${id}/status/`, {
         method: 'PUT',
@@ -203,9 +247,10 @@ async function markStatus(id, status) {
     });
     const data = await res.json();
     alert(data.message);
-    loadAppointments();
+    if (res.ok) loadAppointments();
 }
 
+/* ============ ADD NOTES ============ */
 async function addNotes(id) {
     const notes = document.getElementById('note-' + id).value.trim();
     if (!notes) { alert('Please enter notes.'); return; }
@@ -220,9 +265,10 @@ async function addNotes(id) {
     });
     const data = await res.json();
     alert(data.message);
-    loadAppointments();
+    if (res.ok) loadAppointments();
 }
 
+/* ============ INIT ============ */
 loadAppointments();
 loadSlots();
 </script>
