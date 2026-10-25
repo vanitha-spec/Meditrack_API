@@ -1,6 +1,6 @@
 # 🏥 MediTrack — Healthcare Management API
 
-> **Author:** RaviVarma
+> **Author:** Vanitha
 
 A full-stack **Healthcare Management System** built with **Django + Django REST Framework + JWT + Bootstrap 5** where:
 
@@ -885,9 +885,9 @@ MIT — free to use, modify, and learn from.
 
 ## 👨‍💻 Author
 
-**RaviVarma**
+**Vanitha**
 - 🎓 Fresher | Python • Django • REST API Developer
-- 🔗 GitHub: [github.com/varma5359](https://github.com/varma5359)
+- 🔗 GitHub: [github.com/vanitha-spec](https://github.com/vanitha-spec)
 
 
 > *"Built from scratch — every line of code understood and documented."*
