@@ -1,0 +1,25 @@
+body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+}
+
+.btn {
+    border-radius: 8px;
+}
+
+.form-control, .form-select {
+    border-radius: 8px;
+}
+
+.badge {
+    padding: 6px 10px;
+    font-weight: 500;
+}

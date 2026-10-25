@@ -1,0 +1,229 @@
+{% extends 'base.html' %}
+{% block title %}Doctor Dashboard{% endblock %}
+
+{% block content %}
+<h2 class="fw-bold mb-4">🧑‍⚕️ Doctor Dashboard</h2>
+
+<div class="row g-4">
+    <!-- Profile / Slot creation -->
+    <div class="col-md-5">
+        <div class="card shadow-sm border-0 rounded-4 mb-3">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">My Profile</h5>
+                <input id="specialization" class="form-control mb-2" placeholder="Specialization">
+                <input id="experience" type="number" class="form-control mb-2" placeholder="Years of experience">
+                <input id="fee" type="number" step="0.01" class="form-control mb-2" placeholder="Consultation fee">
+                <textarea id="bio" class="form-control mb-2" rows="2" placeholder="Short bio"></textarea>
+                <button onclick="saveProfile()" class="btn btn-primary w-100">Save Profile</button>
+                <p id="profileMsg" class="small mt-2"></p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">Add Availability Slot</h5>
+                <input id="date" type="date" class="form-control mb-2">
+                <input id="start" type="time" class="form-control mb-2">
+                <input id="end" type="time" class="form-control mb-2">
+                <button onclick="addSlot()" class="btn btn-success w-100">Add Slot</button>
+                <p id="slotMsg" class="small mt-2"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Appointments + slots -->
+    <div class="col-md-7">
+        <h5 class="fw-bold mb-3">My Appointments</h5>
+        <div id="appointments"></div>
+
+        <h5 class="fw-bold mt-4 mb-3">My Slots</h5>
+        <div id="slots"></div>
+    </div>
+</div>
+
+<script>
+const token = localStorage.getItem('access');
+const role = localStorage.getItem('role');
+
+if (!token) { window.location.href = '/login/'; }
+if (role !== 'doctor') { alert('Doctors only.'); window.location.href = '/doctors/'; }
+
+/* ---------- PROFILE ---------- */
+async function saveProfile() {
+    const body = {
+        specialization: document.getElementById('specialization').value,
+        experience_years: parseInt(document.getElementById('experience').value) || 0,
+        consultation_fee: document.getElementById('fee').value || "0",
+        bio: document.getElementById('bio').value,
+        is_available: true,
+    };
+    const res = await fetch('/api/doctors/profile/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+        },
+        body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    document.getElementById('profileMsg').innerHTML = res.ok
+        ? '<span class="text-success">Profile saved.</span>'
+        : '<span class="text-danger">' + data.message + '</span>';
+}
+
+/* ---------- SLOT ---------- */
+async function addSlot() {
+    const body = {
+        date: document.getElementById('date').value,
+        start_time: document.getElementById('start').value + ':00',
+        end_time: document.getElementById('end').value + ':00',
+    };
+    const res = await fetch('/api/slots/create/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+        },
+        body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    const msg = document.getElementById('slotMsg');
+
+    if (res.ok) {
+        msg.innerHTML = '<span class="text-success">Slot added.</span>';
+        document.getElementById('date').value = '';
+        document.getElementById('start').value = '';
+        document.getElementById('end').value = '';
+        loadSlots();
+    } else {
+        let errMsg = data.message;
+        if (data.errors) {
+            const k = Object.keys(data.errors)[0];
+            if (k) errMsg = data.errors[k][0];
+        }
+        msg.innerHTML = '<span class="text-danger">' + errMsg + '</span>';
+    }
+}
+
+/* ---------- LOAD SLOTS ---------- */
+async function loadSlots() {
+    const res = await fetch('/api/slots/?all=true', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    const container = document.getElementById('slots');
+
+    const mine = data.data.filter(s => s.doctor_username === localStorage.getItem('username'));
+
+    if (mine.length === 0) {
+        container.innerHTML = '<p class="text-muted small">No slots yet.</p>';
+        return;
+    }
+
+    container.innerHTML = mine.map(slot => `
+        <div class="border rounded-3 p-2 mb-2 d-flex justify-content-between align-items-center">
+            <div class="small">
+                <strong>${slot.date}</strong> ${slot.start_time}–${slot.end_time}
+                ${slot.is_booked ? '<span class="badge bg-danger ms-2">Booked</span>' : '<span class="badge bg-success ms-2">Free</span>'}
+            </div>
+            ${!slot.is_booked
+                ? `<button onclick="deleteSlot(${slot.id})" class="btn btn-sm btn-outline-danger">Delete</button>`
+                : ''}
+        </div>
+    `).join('');
+}
+
+async function deleteSlot(id) {
+    if (!confirm('Delete this slot?')) return;
+    const res = await fetch(`/api/slots/${id}/delete/`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    alert(data.message);
+    loadSlots();
+}
+
+/* ---------- LOAD APPOINTMENTS ---------- */
+async function loadAppointments() {
+    const res = await fetch('/api/doctor/appointments/', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    const container = document.getElementById('appointments');
+
+    if (data.data.length === 0) {
+        container.innerHTML = '<p class="text-muted small">No appointments yet.</p>';
+        return;
+    }
+
+    container.innerHTML = data.data.map(app => `
+        <div class="card shadow-sm border-0 rounded-4 mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>Patient: ${app.patient_username}</strong>
+                        <p class="small mb-1">📅 ${app.slot_date} &nbsp; 🕐 ${app.slot_start} – ${app.slot_end}</p>
+                        <span class="badge ${badgeClass(app.status)}">${app.status}</span>
+                    </div>
+                    <div>
+                        ${app.status === 'pending' ? `
+                            <button onclick="markStatus(${app.id}, 'completed')" class="btn btn-sm btn-success me-1">Complete</button>
+                            <button onclick="markStatus(${app.id}, 'no_show')" class="btn btn-sm btn-warning">No Show</button>
+                        ` : ''}
+                    </div>
+                </div>
+
+                ${app.notes
+                    ? `<p class="small mt-2 mb-1"><strong>Notes:</strong> ${app.notes}</p>`
+                    : `<div class="input-group input-group-sm mt-2">
+                          <input id="note-${app.id}" class="form-control" placeholder="Add prescription notes...">
+                          <button onclick="addNotes(${app.id})" class="btn btn-outline-primary">Save</button>
+                       </div>`}
+            </div>
+        </div>
+    `).join('');
+}
+
+function badgeClass(s) {
+    if (s === 'completed') return 'bg-success';
+    if (s === 'cancelled') return 'bg-danger';
+    if (s === 'no_show') return 'bg-warning text-dark';
+    return 'bg-secondary';
+}
+
+async function markStatus(id, status) {
+    const res = await fetch(`/api/appointments/${id}/status/`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+        },
+        body: JSON.stringify({ status })
+    });
+    const data = await res.json();
+    alert(data.message);
+    loadAppointments();
+}
+
+async function addNotes(id) {
+    const notes = document.getElementById('note-' + id).value.trim();
+    if (!notes) { alert('Please enter notes.'); return; }
+
+    const res = await fetch(`/api/appointments/${id}/notes/`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+        },
+        body: JSON.stringify({ notes })
+    });
+    const data = await res.json();
+    alert(data.message);
+    loadAppointments();
+}
+
+loadAppointments();
+loadSlots();
+</script>
+{% endblock %}

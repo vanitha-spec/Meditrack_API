@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}My Appointments{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold">📅 My Appointments</h2>
+    <a href="/doctors/" class="btn btn-sm btn-outline-primary">← Find Doctors</a>
+</div>
+
+<div id="loading" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status"></div>
+    <p class="text-muted small mt-2">Loading...</p>
+</div>
+
+<div id="empty" class="text-center py-5" style="display:none;">
+    <h1 class="display-6">📭</h1>
+    <p class="text-muted">You haven't booked any appointments yet.</p>
+    <a href="/doctors/" class="btn btn-primary btn-sm">Find a Doctor</a>
+</div>
+
+<div id="apps"></div>
+
+<script>
+const token = localStorage.getItem('access');
+const role = localStorage.getItem('role');
+
+if (!token) {
+    window.location.href = '/login/';
+} else if (role !== 'patient') {
+    alert('This page is only for patients.');
+    window.location.href = '/doctors/';
+}
+
+function badgeClass(status) {
+    if (status === 'completed') return 'bg-success';
+    if (status === 'cancelled') return 'bg-danger';
+    if (status === 'no_show') return 'bg-warning text-dark';
+    return 'bg-secondary';
+}
+
+async function loadAppointments() {
+    const res = await fetch('/api/my-appointments/', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+
+    document.getElementById('loading').style.display = 'none';
+
+    if (data.data.length === 0) {
+        document.getElementById('empty').style.display = 'block';
+        return;
+    }
+
+    document.getElementById('apps').innerHTML = data.data.map(app => `
+        <div class="card shadow-sm border-0 rounded-4 mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="fw-bold mb-1">Dr. ${app.doctor_username}</h5>
+                        <p class="text-primary small mb-1">${app.doctor_specialization}</p>
+                        <p class="small mb-1">📅 ${app.slot_date} &nbsp; 🕐 ${app.slot_start} – ${app.slot_end}</p>
+                        ${app.notes ? `<p class="small text-secondary"><strong>Doctor's notes:</strong> ${app.notes}</p>` : ''}
+                    </div>
+                    <div class="text-end">
+                        <span class="badge ${badgeClass(app.status)}">${app.status.toUpperCase()}</span>
+                        ${app.status === 'pending' ? `
+                            <div class="mt-2">
+                                <button onclick="cancelAppointment(${app.id})"
+                                        class="btn btn-sm btn-outline-danger">Cancel</button>
+                            </div>` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function cancelAppointment(id) {
+    if (!confirm('Cancel this appointment?')) return;
+    const res = await fetch(`/api/appointments/${id}/cancel/`, {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    alert(data.message);
+    if (res.ok) loadAppointments();
+}
+
+loadAppointments();
+</script>
+{% endblock %}
